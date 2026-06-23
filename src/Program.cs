@@ -27,6 +27,8 @@ builder.Services.AddHttpClient<ICarbonIntensityService, CarbonIntensityService>(
     client.BaseAddress = new Uri("https://api.carbonintensity.org.uk/");
 });
 
+builder.Services.AddScoped<IEnergyMixService, EnergyMixService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
