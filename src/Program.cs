@@ -1,19 +1,30 @@
+using EnergyMix.API.Services;
+using EnergyMix.API.ErrorHandling;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", builder =>
     {
         builder.AllowAnyOrigin()
-               .AllowAnyMethod()
-               .AllowAnyHeader();
+                     .AllowAnyMethod()
+                     .AllowAnyHeader();
     });
+});
+
+builder.Services.AddHttpClient<ICarbonIntensityService, CarbonIntensityService>(client =>
+{
+    client.BaseAddress = new Uri("https://api.carbonintensity.org.uk/");
 });
 
 var app = builder.Build();
@@ -25,12 +36,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseExceptionHandler();
 app.UseHttpsRedirection();
-
-app.UseAuthorization();
-
 app.UseCors("AllowAll");
-
+app.UseAuthorization();
 app.MapControllers();
 
 app.Run();

@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.14.36915.13
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "src", "src\src.csproj", "{71C949B3-493C-9DFE-AB38-19C13C100153}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EnergyMix.API", "src\EnergyMix.API.csproj", "{71C949B3-493C-9DFE-AB38-19C13C100153}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
