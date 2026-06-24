@@ -1,7 +1,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-COPY ["EnergyMix.API.csproj", "./"]
+COPY ["src/EnergyMix.API.csproj", "./"]
 RUN dotnet restore "./EnergyMix.API.csproj"
 
 COPY . .
