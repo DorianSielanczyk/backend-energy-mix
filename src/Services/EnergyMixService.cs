@@ -1,12 +1,11 @@
 ﻿using EnergyMix.API.DTOs;
 using System.Globalization;
+using EnergyMix.API.Enums;
 
 namespace EnergyMix.API.Services
 {
     public class EnergyMixService(ICarbonIntensityService carbonService) : IEnergyMixService
     {
-        private static readonly string[] CleanEnergySources = ["biomass", "nuclear", "hydro", "wind", "solar"];
-
         public async Task<List<DailySummaryResponse>> GetDailySummariesAsync()
         {
             var today = DateTime.UtcNow.Date;
@@ -21,7 +20,7 @@ namespace EnergyMix.API.Services
 
             foreach (var dayGroup in groupedByDay)
             {
-                var summary = new DailySummaryResponse { Date = dayGroup.Key };
+                var dailyDictionary = new Dictionary<string, double>();
                 var fuelTypes = dayGroup.SelectMany(i => i.GenerationMix).Select(f => f.Fuel).Distinct();
 
                 foreach (var fuel in fuelTypes)
@@ -31,13 +30,14 @@ namespace EnergyMix.API.Services
                         .Where(f => f.Fuel == fuel)
                         .Average(f => f.Perc);
 
-                    summary.AverageGenerationByFuel[fuel] = Math.Round(averageForFuel, 2);
+                    dailyDictionary[fuel] = Math.Round(averageForFuel, 2);
                 }
 
-                summary.CleanEnergyPercentage = summary.AverageGenerationByFuel
-           .Where(kvp => CleanEnergySources.Contains(kvp.Key))
-           .Sum(kvp => kvp.Value);
+                var cleanEnergyPercentage = dailyDictionary
+               .Where(kvp => Enum.TryParse<CleanEnergySource>(kvp.Key, ignoreCase: true, out _))
+               .Sum(kvp => kvp.Value);
 
+                var summary = new DailySummaryResponse(dayGroup.Key, cleanEnergyPercentage, dailyDictionary);
                 dailySummaries.Add(summary);
             }
 
@@ -48,7 +48,9 @@ namespace EnergyMix.API.Services
         public async Task<BestWindowResponse?> GetBestChargingWindowAsync(int chargingHours)
         {
             if (chargingHours < 1 || chargingHours > 6)
+            {
                 throw new ArgumentException("Czas ładowania musi wynosić od 1 do 6 godzin.");
+            }
 
             var now = DateTime.UtcNow;
             var response = await carbonService.GetGenerationAsync(now, now.AddHours(48));
@@ -59,7 +61,9 @@ namespace EnergyMix.API.Services
             int windowSize = chargingHours * 2;
 
             if (intervals.Count < windowSize)
+            {
                 throw new InvalidOperationException("Niewystarczająca liczba danych do znalezienia okna.");
+            }
 
             double maxCleanEnergyAvg = -1;
             BestWindowResponse? bestWindow = null;
@@ -72,7 +76,7 @@ namespace EnergyMix.API.Services
                 foreach (var interval in windowIntervals)
                 {
                     var cleanEnergyInInterval = interval.GenerationMix
-                        .Where(x => CleanEnergySources.Contains(x.Fuel))
+                        .Where(x => Enum.TryParse<CleanEnergySource>(x.Fuel, ignoreCase: true, out _))
                         .Sum(x => x.Perc);
 
                     sumOfCleanEnergyInWindow += cleanEnergyInInterval;
@@ -83,12 +87,11 @@ namespace EnergyMix.API.Services
                 if (windowAverage > maxCleanEnergyAvg)
                 {
                     maxCleanEnergyAvg = windowAverage;
-                    bestWindow = new BestWindowResponse
-                    {
-                        StartTime = ParseApiTime(windowIntervals.First().From),
-                        EndTime = ParseApiTime(windowIntervals.Last().To),
-                        AverageCleanEnergyPercentage = Math.Round(windowAverage, 2)
-                    };
+                    bestWindow = new BestWindowResponse(
+                  ParseApiTime(windowIntervals.First().From),
+                  ParseApiTime(windowIntervals.Last().To),
+                  Math.Round(windowAverage, 2)
+                  );
                 }
             }
 

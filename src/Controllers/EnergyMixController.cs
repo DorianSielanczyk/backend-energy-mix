@@ -6,27 +6,19 @@ namespace EnergyMix.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class EnergyMixController : ControllerBase
+    public class EnergyMixController(IEnergyMixService energyMixService) : ControllerBase
     {
-        private readonly IEnergyMixService _energyMixService;
-
-        public EnergyMixController(IEnergyMixService energyMixService)
-        {
-            _energyMixService = energyMixService;
-        }
 
         [HttpGet("daily-summaries")]
-        public async Task<List<DailySummaryResponse>> GetDailySummariesAsync()
+        public async Task<ActionResult<IEnumerable<DailySummaryResponse>>> GetDailySummariesAsync()
         {
-            var dailySummaries = await _energyMixService.GetDailySummariesAsync();
-            return dailySummaries;
+            return Ok(await energyMixService.GetDailySummariesAsync());
         }
 
         [HttpGet("best-charging-window")]
-        public async Task<BestWindowResponse?> GetBestChargingWindowAsync(int chargingHours)
+        public async Task<ActionResult<BestWindowResponse>> GetBestChargingWindowAsync(int chargingHours)
         {
-            var bestWindow = await _energyMixService.GetBestChargingWindowAsync(chargingHours);
-            return bestWindow;
+            return Ok(await energyMixService.GetBestChargingWindowAsync(chargingHours));
         }
     }
 }

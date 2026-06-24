@@ -4,10 +4,11 @@ namespace EnergyMix.API.Services;
 
 public class CarbonIntensityService(HttpClient httpClient) : ICarbonIntensityService
 {
+    const string DateFormat = "yyyy-MM-ddTHH:mmZ"; 
     public async Task<CarbonIntensityResponse?> GetGenerationAsync(DateTime from, DateTime to)
     {
-        string fromFormatted = from.ToString("yyyy-MM-ddTHH:mmZ");
-        string toFormatted = to.ToString("yyyy-MM-ddTHH:mmZ");
+        var fromFormatted = from.ToString(DateFormat); 
+        var toFormatted = to.ToString(DateFormat); 
 
         var url = $"generation/{fromFormatted}/{toFormatted}";
         

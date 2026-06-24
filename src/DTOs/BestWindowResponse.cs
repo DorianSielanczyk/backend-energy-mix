@@ -1,9 +1,9 @@
 ﻿namespace EnergyMix.API.DTOs
+
 {
-    public class BestWindowResponse
-    {
-        public DateTime StartTime { get; set; }
-        public DateTime EndTime { get; set; }
-        public double AverageCleanEnergyPercentage { get; set; }
-    }
+    public record BestWindowResponse (
+        DateTime StartTime, 
+        DateTime EndTime,
+        double AverageCleanEnergyPercentage
+        );
 }
