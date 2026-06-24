@@ -16,7 +16,9 @@ namespace EnergyMix.API.Services
 
             var dailySummaries = new List<DailySummaryResponse>();
 
-            var groupedByDay = response.Data.GroupBy(interval => ParseApiTime(interval.From).Date);
+            var validData = response.Data.Where(interval => ParseApiTime(interval.From).Date >= today);
+
+            var groupedByDay = validData.GroupBy(interval => ParseApiTime(interval.From).Date);
 
             foreach (var dayGroup in groupedByDay)
             {
@@ -33,10 +35,11 @@ namespace EnergyMix.API.Services
                     dailyDictionary[fuel] = Math.Round(averageForFuel, 2);
                 }
 
-                var cleanEnergyPercentage = dailyDictionary
-               .Where(kvp => Enum.TryParse<CleanEnergySource>(kvp.Key, ignoreCase: true, out _))
-               .Sum(kvp => kvp.Value);
-
+                var cleanEnergyPercentage = Math.Round(
+            dailyDictionary
+                .Where(kvp => Enum.TryParse<CleanEnergySource>(kvp.Key, ignoreCase: true, out _))
+                .Sum(kvp => kvp.Value),
+            2);
                 var summary = new DailySummaryResponse(dayGroup.Key, cleanEnergyPercentage, dailyDictionary);
                 dailySummaries.Add(summary);
             }
