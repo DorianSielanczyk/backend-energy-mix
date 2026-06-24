@@ -37,7 +37,7 @@ namespace EnergyMix.API.Services
 
                 var cleanEnergyPercentage = Math.Round(
             dailyDictionary
-                .Where(kvp => Enum.TryParse<CleanEnergySource>(kvp.Key, ignoreCase: true, out _))
+                .Where(kvp => IsCleanEnergy(kvp.Key))
                 .Sum(kvp => kvp.Value),
             2);
                 var summary = new DailySummaryResponse(dayGroup.Key, cleanEnergyPercentage, dailyDictionary);
@@ -79,7 +79,7 @@ namespace EnergyMix.API.Services
                 foreach (var interval in windowIntervals)
                 {
                     var cleanEnergyInInterval = interval.GenerationMix
-                        .Where(x => Enum.TryParse<CleanEnergySource>(x.Fuel, ignoreCase: true, out _))
+                        .Where(x => IsCleanEnergy(x.Fuel))
                         .Sum(x => x.Perc);
 
                     sumOfCleanEnergyInWindow += cleanEnergyInInterval;
@@ -104,6 +104,11 @@ namespace EnergyMix.API.Services
         private static DateTime ParseApiTime(string isoTimeString)
         {
             return DateTime.Parse(isoTimeString, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+        }
+
+        private static bool IsCleanEnergy(string fuel)
+        {
+            return Enum.TryParse<CleanEnergySource>(fuel, ignoreCase: true, out _);
         }
     }
 }
