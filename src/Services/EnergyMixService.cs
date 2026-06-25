@@ -14,91 +14,83 @@ namespace EnergyMix.API.Services
             var response = await carbonService.GetGenerationAsync(today, endOfNextTwoDays);
             if (response?.Data == null) return [];
 
-            var dailySummaries = new List<DailySummaryResponse>();
-
-            var validData = response.Data.Where(interval => ParseApiTime(interval.From).Date >= today);
-
-            var groupedByDay = validData.GroupBy(interval => ParseApiTime(interval.From).Date);
-
-            foreach (var dayGroup in groupedByDay)
-            {
-                var dailyDictionary = new Dictionary<string, double>();
-                var fuelTypes = dayGroup.SelectMany(i => i.GenerationMix).Select(f => f.Fuel).Distinct();
-
-                foreach (var fuel in fuelTypes)
-                {
-                    double averageForFuel = dayGroup
-                        .SelectMany(i => i.GenerationMix)
-                        .Where(f => f.Fuel == fuel)
-                        .Average(f => f.Perc);
-
-                    dailyDictionary[fuel] = Math.Round(averageForFuel, 2);
-                }
-
-                var cleanEnergyPercentage = Math.Round(
-            dailyDictionary
-                .Where(kvp => IsCleanEnergy(kvp.Key))
-                .Sum(kvp => kvp.Value),
-            2);
-                var summary = new DailySummaryResponse(dayGroup.Key, cleanEnergyPercentage, dailyDictionary);
-                dailySummaries.Add(summary);
-            }
-
-            return dailySummaries;
+            return response.Data
+                .Where(interval => ParseApiTime(interval.From).Date >= today)
+                .GroupBy(interval => ParseApiTime(interval.From).Date)
+                .Select(CalculateDailySummary)
+                .ToList();
         }
-
 
         public async Task<BestWindowResponse?> GetBestChargingWindowAsync(int chargingHours)
         {
-            if (chargingHours < 1 || chargingHours > 6)
-            {
+            if (chargingHours is < 1 or > 6)
                 throw new ArgumentException("Czas ładowania musi wynosić od 1 do 6 godzin.");
-            }
 
             var now = DateTime.UtcNow;
             var response = await carbonService.GetGenerationAsync(now, now.AddHours(48));
-
             var intervals = response?.Data;
+
             if (intervals == null || intervals.Count == 0) return null;
 
             int windowSize = chargingHours * 2;
-
             if (intervals.Count < windowSize)
-            {
                 throw new InvalidOperationException("Niewystarczająca liczba danych do znalezienia okna.");
+
+            return FindBestContiguousWindow(intervals, windowSize);
+        }
+
+        private DailySummaryResponse CalculateDailySummary(IGrouping<DateTime, CarbonIntensityData> dayGroup)
+        {
+            var dailyDictionary = new Dictionary<string, double>();
+            var mixesGroupedByFuel = dayGroup
+                  .SelectMany(i => i.GenerationMix)
+                  .GroupBy(m => m.Fuel);
+
+            foreach (var fuelGroup in mixesGroupedByFuel)
+            {
+                double averageForFuel = fuelGroup.Average(f => f.Perc);
+                dailyDictionary[fuelGroup.Key] = Math.Round(averageForFuel, 2);
             }
 
+            var cleanEnergyPercentage = Math.Round(
+                dailyDictionary
+                    .Where(kvp => IsCleanEnergy(kvp.Key))
+                    .Sum(kvp => kvp.Value), 2);
+
+            return new DailySummaryResponse(dayGroup.Key, cleanEnergyPercentage, dailyDictionary);
+        }
+
+        private BestWindowResponse? FindBestContiguousWindow(List<CarbonIntensityData> intervals, int windowSize)
+        {
             double maxCleanEnergyAvg = -1;
             BestWindowResponse? bestWindow = null;
 
             for (int i = 0; i <= intervals.Count - windowSize; i++)
             {
                 var windowIntervals = intervals.Skip(i).Take(windowSize).ToList();
-                double sumOfCleanEnergyInWindow = 0;
 
-                foreach (var interval in windowIntervals)
-                {
-                    var cleanEnergyInInterval = interval.GenerationMix
-                        .Where(x => IsCleanEnergy(x.Fuel))
-                        .Sum(x => x.Perc);
-
-                    sumOfCleanEnergyInWindow += cleanEnergyInInterval;
-                }
-
-                double windowAverage = sumOfCleanEnergyInWindow / windowSize;
+                double windowAverage = CalculateWindowAverage(windowIntervals) / windowSize;
 
                 if (windowAverage > maxCleanEnergyAvg)
                 {
                     maxCleanEnergyAvg = windowAverage;
                     bestWindow = new BestWindowResponse(
-                  ParseApiTime(windowIntervals.First().From),
-                  ParseApiTime(windowIntervals.Last().To),
-                  Math.Round(windowAverage, 2)
-                  );
+                        ParseApiTime(windowIntervals.First().From),
+                        ParseApiTime(windowIntervals.Last().To),
+                        Math.Round(windowAverage, 2)
+                    );
                 }
             }
 
             return bestWindow;
+        }
+
+        private double CalculateWindowAverage(List<CarbonIntensityData> windowIntervals)
+        {
+            return windowIntervals.Sum(interval =>
+                interval.GenerationMix
+                    .Where(x => IsCleanEnergy(x.Fuel))
+                    .Sum(x => x.Perc));
         }
 
         private static DateTime ParseApiTime(string isoTimeString)

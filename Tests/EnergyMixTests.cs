@@ -6,43 +6,37 @@ namespace Tests;
 
 public class EnergyMixTests
 {
+    private readonly Mock<ICarbonIntensityService> _mockCarbonService;
+    private readonly EnergyMixService _service;
+
+    public EnergyMixTests()
+    {
+        _mockCarbonService = new Mock<ICarbonIntensityService>();
+        _service = new EnergyMixService(_mockCarbonService.Object);
+    }
+
     [Fact]
     public async Task GetDailySummariesAsync_WithValidData_ReturnsCorrectAverages()
     {
-        var mockCarbonService = new Mock<ICarbonIntensityService>();
+        // Arrange
+        var fakeResponse = new CarbonIntensityResponse(
+        [
+            new("2099-01-01T10:00Z", "2099-01-01T10:30Z", [ new("wind", 40), new("gas", 60) ]),
+            new("2099-01-01T10:30Z", "2099-01-01T11:00Z", [ new("wind", 80), new("gas", 20) ])
+        ]);
 
-        var fakeResponse = new CarbonIntensityResponse
-        {
-            Data =
-            [
-                new CarbonIntensityData
-                {
-                    From = "2026-01-01T10:00Z",
-                    To = "2026-01-01T10:30Z",
-                    GenerationMix = [ new GenerationMix { Fuel = "wind", Perc = 40 }, new GenerationMix { Fuel = "gas", Perc = 60 } ]
-                },
-                new CarbonIntensityData
-                {
-                    From = "2026-01-01T10:30Z",
-                    To = "2026-01-01T11:00Z",
-                    GenerationMix = [ new GenerationMix { Fuel = "wind", Perc = 80 }, new GenerationMix { Fuel = "gas", Perc = 20 } ]
-                }
-            ]
-        };
-
-        mockCarbonService
+        _mockCarbonService
             .Setup(s => s.GetGenerationAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>()))
             .ReturnsAsync(fakeResponse);
 
-        var service = new EnergyMixService(mockCarbonService.Object);
+        // Act
+        var results = await _service.GetDailySummariesAsync();
 
-        var results = await service.GetDailySummariesAsync();
-
+        // Assert
         Assert.NotNull(results);
-        Assert.Single(results); 
+        Assert.Single(results);
 
         var dayResult = results.First();
-
         Assert.Equal(60, dayResult.CleanEnergyPercentage);
         Assert.Equal(60, dayResult.AverageGenerationByFuel["wind"]);
         Assert.Equal(40, dayResult.AverageGenerationByFuel["gas"]);
@@ -51,29 +45,24 @@ public class EnergyMixTests
     [Fact]
     public async Task GetBestChargingWindowAsync_WithValidData_ReturnsBestContiguousWindow()
     {
-        var mockCarbonService = new Mock<ICarbonIntensityService>();
+        // Arrange
+        var fakeResponse = new CarbonIntensityResponse(
+        [
+            new("2026-01-01T10:00Z", "2026-01-01T10:30Z", [ new("solar", 20) ]),
+            new("2026-01-01T10:30Z", "2026-01-01T11:00Z", [ new("solar", 90) ]),
+            new("2026-01-01T11:00Z", "2026-01-01T11:30Z", [ new("solar", 80) ]),
+            new("2026-01-01T11:30Z", "2026-01-01T12:00Z", [ new("solar", 10) ])
+        ]);
 
-        var fakeResponse = new CarbonIntensityResponse
-        {
-            Data =
-            [
-                new() { From = "2026-01-01T10:00Z", To = "2026-01-01T10:30Z", GenerationMix = [ new() { Fuel = "solar", Perc = 20 } ] },
-                new() { From = "2026-01-01T10:30Z", To = "2026-01-01T11:00Z", GenerationMix = [ new() { Fuel = "solar", Perc = 90 } ] },
-                new() { From = "2026-01-01T11:00Z", To = "2026-01-01T11:30Z", GenerationMix = [ new() { Fuel = "solar", Perc = 80 } ] },
-                new() { From = "2026-01-01T11:30Z", To = "2026-01-01T12:00Z", GenerationMix = [ new() { Fuel = "solar", Perc = 10 } ] }
-            ]
-        };
-
-        mockCarbonService
+        _mockCarbonService
             .Setup(s => s.GetGenerationAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>()))
             .ReturnsAsync(fakeResponse);
 
-        var service = new EnergyMixService(mockCarbonService.Object);
+        // Act
+        var bestWindow = await _service.GetBestChargingWindowAsync(chargingHours: 1);
 
-        var bestWindow = await service.GetBestChargingWindowAsync(chargingHours: 1);
-
+        // Assert
         Assert.NotNull(bestWindow);
-
         Assert.Equal(85.0, bestWindow.AverageCleanEnergyPercentage);
         Assert.Equal(DateTime.Parse("2026-01-01T10:30Z").ToUniversalTime(), bestWindow.StartTime);
         Assert.Equal(DateTime.Parse("2026-01-01T11:30Z").ToUniversalTime(), bestWindow.EndTime);
@@ -82,71 +71,68 @@ public class EnergyMixTests
     [Fact]
     public async Task GetDailySummariesAsync_ApiReturnsNull_ReturnsEmptyList()
     {
-        var mockCarbonService = new Mock<ICarbonIntensityService>();
-
-        mockCarbonService
+        // Arrange
+        _mockCarbonService
             .Setup(s => s.GetGenerationAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>()))
             .ReturnsAsync((CarbonIntensityResponse?)null);
 
-        var service = new EnergyMixService(mockCarbonService.Object);
+        // Act
+        var result = await _service.GetDailySummariesAsync();
 
-        var result = await service.GetDailySummariesAsync();
-
+        // Assert
         Assert.NotNull(result);
         Assert.Empty(result);
     }
 
     [Theory]
-    [InlineData(0)]   
-    [InlineData(-5)]  
-    [InlineData(7)]   
+    [InlineData(0)]
+    [InlineData(-5)]
+    [InlineData(7)]
     public async Task GetBestChargingWindowAsync_HoursOutOfRange_ThrowsArgumentException(int invalidHours)
     {
-        var mockCarbonService = new Mock<ICarbonIntensityService>();
-        var service = new EnergyMixService(mockCarbonService.Object);
+        // Arrange
+        // There is no need to set up mock
 
-        var exception = await Assert.ThrowsAsync<ArgumentException>(() => service.GetBestChargingWindowAsync(invalidHours));
+        // Act
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() => _service.GetBestChargingWindowAsync(invalidHours));
 
+        // Assert
         Assert.Contains("Czas ładowania musi wynosić od 1 do 6 godzin", exception.Message);
     }
 
     [Fact]
     public async Task GetBestChargingWindowAsync_NotEnoughIntervalsForRequestedWindow_ThrowsInvalidOperationException()
     {
-        var mockCarbonService = new Mock<ICarbonIntensityService>();
+        // Arrange
+        var fakeResponse = new CarbonIntensityResponse(
+        [
+            new("2026-01-01T10:00Z", "2026-01-01T10:30Z", []),
+            new("2026-01-01T10:30Z", "2026-01-01T11:00Z", [])
+        ]);
 
-        var fakeResponse = new CarbonIntensityResponse
-        {
-            Data =
-            [
-                new() { From = "2026-01-01T10:00Z", To = "2026-01-01T10:30Z", GenerationMix = [] },
-                new() { From = "2026-01-01T10:30Z", To = "2026-01-01T11:00Z", GenerationMix = [] }
-            ]
-        };
-
-        mockCarbonService
+        _mockCarbonService
             .Setup(s => s.GetGenerationAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>()))
             .ReturnsAsync(fakeResponse);
 
-        var service = new EnergyMixService(mockCarbonService.Object);
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => service.GetBestChargingWindowAsync(chargingHours: 2));
+        // Act
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => _service.GetBestChargingWindowAsync(chargingHours: 2));
 
+        // Assert
         Assert.Contains("Niewystarczająca liczba danych", exception.Message);
     }
 
     [Fact]
     public async Task GetBestChargingWindowAsync_ApiReturnsNullData_ReturnsNull()
     {
-        var mockCarbonService = new Mock<ICarbonIntensityService>();
-
-        mockCarbonService
+        // Arrange
+        _mockCarbonService
             .Setup(s => s.GetGenerationAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>()))
-            .ReturnsAsync(new CarbonIntensityResponse { Data = [] });
+            .ReturnsAsync(new CarbonIntensityResponse([]));
 
-        var service = new EnergyMixService(mockCarbonService.Object);
+        // Act
+        var result = await _service.GetBestChargingWindowAsync(2);
 
-        var result = await service.GetBestChargingWindowAsync(2);
-
+        // Assert
         Assert.Null(result);
     }
 }

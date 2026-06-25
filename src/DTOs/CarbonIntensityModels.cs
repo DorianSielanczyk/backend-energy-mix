@@ -2,29 +2,17 @@ using System.Text.Json.Serialization;
 
 namespace EnergyMix.API.DTOs;
 
-public record CarbonIntensityResponse
-{
-    [JsonPropertyName("data")]
-    public List<CarbonIntensityData> Data { get; init; } = []; 
-}
+public record CarbonIntensityResponse(
+    [property: JsonPropertyName("data")] List<CarbonIntensityData> Data
+);
 
-public record CarbonIntensityData
-{
-    [JsonPropertyName("from")]
-    public string From { get; init; } = string.Empty;
+public record CarbonIntensityData(
+    [property: JsonPropertyName("from")] string From,
+    [property: JsonPropertyName("to")] string To,
+    [property: JsonPropertyName("generationmix")] List<GenerationMix> GenerationMix
+);
 
-    [JsonPropertyName("to")]
-    public string To { get; init; } = string.Empty;
-
-    [JsonPropertyName("generationmix")]
-    public List<GenerationMix> GenerationMix { get; init; } = [];
-}
-
-public record GenerationMix
-{
-    [JsonPropertyName("fuel")]
-    public string Fuel { get; init; } = string.Empty;
-
-    [JsonPropertyName("perc")]
-    public double Perc { get; init; }
-}
+public record GenerationMix(
+    [property: JsonPropertyName("fuel")] string Fuel,
+    [property: JsonPropertyName("perc")] double Perc
+);
